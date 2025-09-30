@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupCourseSpinner() {
-        val courses = arrayOf("1 курс", "2 курс", "3 курс", "4 курс", "5 курс", "6 курс")
+        val courses = arrayOf("1 курс", "2 курс", "3 курс", "4 курс")
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, courses)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spCourse.adapter = adapter
