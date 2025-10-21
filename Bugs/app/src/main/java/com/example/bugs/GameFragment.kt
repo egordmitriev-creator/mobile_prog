@@ -11,6 +11,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import kotlin.random.Random
@@ -20,17 +21,29 @@ class GameFragment : Fragment() {
     private lateinit var gameView: GameView
     private lateinit var scoreTextView: TextView
     private lateinit var timerTextView: TextView
+    private lateinit var startButton: Button
+    private lateinit var restartButton: Button
+    private lateinit var startMessage: TextView
+
     private var score = 0
     private var gameTime = 0
     private var isGameRunning = false
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var gameHandler: Handler
+
     private val gameRunnable = object : Runnable {
         override fun run() {
             if (isGameRunning) {
                 gameTime++
                 updateGameInfo()
-                gameHandler.postDelayed(this, 1000)
+
+                // Проверяем окончание времени раунда
+                val roundDuration = sharedPreferences.getInt("duration", 60)
+                if (gameTime >= roundDuration) {
+                    endGame()
+                } else {
+                    gameHandler.postDelayed(this, 1000)
+                }
             }
         }
     }
@@ -49,18 +62,21 @@ class GameFragment : Fragment() {
         gameView = view.findViewById(R.id.gameView)
         scoreTextView = view.findViewById(R.id.scoreTextView)
         timerTextView = view.findViewById(R.id.timerTextView)
+        startButton = view.findViewById(R.id.startButton)
+        restartButton = view.findViewById(R.id.restartButton)
+        startMessage = view.findViewById(R.id.startMessage)
 
         sharedPreferences = requireContext().getSharedPreferences("game_settings", Context.MODE_PRIVATE)
         gameHandler = Handler(Looper.getMainLooper())
 
         setupGame()
+        setupButtons()
     }
 
     private fun setupGame() {
         // Загружаем настройки
         val gameSpeed = sharedPreferences.getInt("speed", 50)
         val maxBugs = sharedPreferences.getInt("cockroaches", 10)
-        val roundDuration = sharedPreferences.getInt("duration", 60)
 
         gameView.setGameSettings(gameSpeed, maxBugs)
         gameView.setOnBugTappedListener { points ->
@@ -73,20 +89,60 @@ class GameFragment : Fragment() {
             updateGameInfo()
         }
 
-        startGame(roundDuration)
+        // Изначально игра не запущена
+        resetGameState()
     }
 
-    private fun startGame(duration: Int) {
+    private fun setupButtons() {
+        // Кнопка начала игры
+        startButton.setOnClickListener {
+            startGame()
+        }
+
+        // Кнопка перезапуска
+        restartButton.setOnClickListener {
+            restartGame()
+        }
+    }
+
+    private fun startGame() {
+        // Скрываем кнопку старта и сообщение
+        startButton.visibility = View.GONE
+        startMessage.visibility = View.GONE
+        restartButton.visibility = View.GONE
+
+        // Сбрасываем игру
         score = 0
         gameTime = 0
         isGameRunning = true
-        gameView.startGame()
-        gameHandler.post(gameRunnable)
 
-        // Автоматическое завершение игры через duration секунд
-        gameHandler.postDelayed({
-            endGame()
-        }, duration * 1000L)
+        // Обновляем информацию
+        updateGameInfo()
+
+        // Запускаем игровое поле
+        gameView.startGame()
+
+        // Запускаем таймер
+        gameHandler.post(gameRunnable)
+    }
+
+    private fun restartGame() {
+        // Скрываем кнопку перезапуска
+        restartButton.visibility = View.GONE
+
+        // Сбрасываем игру
+        score = 0
+        gameTime = 0
+        isGameRunning = true
+
+        // Обновляем информацию
+        updateGameInfo()
+
+        // Перезапускаем игровое поле
+        gameView.restartGame()
+
+        // Запускаем таймер
+        gameHandler.post(gameRunnable)
     }
 
     private fun endGame() {
@@ -94,13 +150,32 @@ class GameFragment : Fragment() {
         gameView.stopGame()
         gameHandler.removeCallbacks(gameRunnable)
 
-        // Показываем итоговый счет
+        // Показываем кнопку перезапуска
+        restartButton.visibility = View.VISIBLE
+
+        // Обновляем информацию о финальном счете
         scoreTextView.text = "Игра окончена! Счет: $score"
+        timerTextView.text = "Время вышло!"
+    }
+
+    private fun resetGameState() {
+        score = 0
+        gameTime = 0
+        isGameRunning = false
+        updateGameInfo()
+
+        // Показываем начальное состояние
+        startButton.visibility = View.VISIBLE
+        startMessage.visibility = View.VISIBLE
+        restartButton.visibility = View.GONE
     }
 
     private fun updateGameInfo() {
+        val roundDuration = sharedPreferences.getInt("duration", 60)
+        val timeLeft = roundDuration - gameTime
+
         scoreTextView.text = "Очки: $score"
-        timerTextView.text = "Время: ${gameTime}с"
+        timerTextView.text = "Осталось: ${timeLeft}с"
     }
 
     override fun onPause() {
@@ -112,9 +187,6 @@ class GameFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        if (isGameRunning) {
-            gameView.startGame()
-            gameHandler.post(gameRunnable)
-        }
+        // Не возобновляем игру автоматически - ждем нажатия кнопки
     }
 }

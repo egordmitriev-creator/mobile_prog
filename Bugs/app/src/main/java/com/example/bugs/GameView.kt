@@ -83,7 +83,11 @@ class GameView @JvmOverloads constructor(
 
         postDelayed(bugCreationRunnable, bugCreationInterval)
     }
-
+    fun restartGame() {
+        stopGame()
+        bugs.clear()
+        startGame()
+    }
     fun stopGame() {
         isGameRunning = false
         animator?.cancel()

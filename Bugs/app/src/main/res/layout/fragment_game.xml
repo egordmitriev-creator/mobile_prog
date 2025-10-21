@@ -34,24 +34,65 @@
 
     </LinearLayout>
 
-    <!-- Сообщение на заднем фоне -->
-    <TextView
-        android:id="@+id/startMessage"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:text="Тапайте по жукам!\nЗа промах - штраф!"
-        android:textSize="30sp"
-        android:textColor="@color/black"
-        android:gravity="center"
-        android:visibility="visible" />
-
     <!-- Игровое поле -->
     <com.example.bugs.GameView
         android:id="@+id/gameView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/infoPanel"
-        android:background="@android:color/transparent" />  <!-- Прозрачный фон -->
+        android:background="@android:color/transparent" />
+
+    <!-- Контейнер для кнопок и сообщений (поверх GameView) -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/infoPanel"
+        android:background="@android:color/transparent">
+
+        <!-- Сообщение на заднем фоне -->
+        <TextView
+            android:id="@+id/startMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="Тапайте по жукам!\nЗа промах - штраф!"
+            android:textSize="30sp"
+            android:textColor="#30000000"
+            android:gravity="center"
+            android:visibility="visible" />
+
+        <!-- Кнопка старта игры -->
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="Начать игру"
+            android:textSize="20sp"
+            android:paddingLeft="40dp"
+            android:paddingRight="40dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="20dp"
+            android:background="@color/purple_500"
+            android:textColor="@color/white"
+            android:visibility="visible" />
+
+        <!-- Кнопка перезапуска (изначально скрыта) -->
+        <Button
+            android:id="@+id/restartButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="Играть снова"
+            android:textSize="20sp"
+            android:paddingLeft="40dp"
+            android:paddingRight="40dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="20dp"
+            android:background="@color/purple_500"
+            android:textColor="@color/white"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
 </RelativeLayout>
