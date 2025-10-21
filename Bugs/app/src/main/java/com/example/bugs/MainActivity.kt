@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
                 1 -> "Правила"
                 2 -> "Авторы"
                 3 -> "Настройки"
+                4 -> "Игра"
                 else -> null
             }
         }.attach()
