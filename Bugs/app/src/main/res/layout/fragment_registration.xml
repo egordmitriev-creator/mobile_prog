@@ -147,6 +147,28 @@
                 android:text=""
                 android:textSize="14sp"
                 android:visibility="gone" />
+            <!-- После остальных полей добавьте: -->
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Существующие пользователи:"
+                android:textSize="16sp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp" />
+
+            <Spinner
+                android:id="@+id/spExistingUsers"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp" />
+
+            <Button
+                android:id="@+id/btnLoadUser"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Загрузить выбранного пользователя"
+                android:layout_marginBottom="24dp" />
 
         </LinearLayout>
 

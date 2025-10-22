@@ -1,4 +1,4 @@
-package com.example.bugs
+package com.example.bugs.fragments
 
 import android.content.Context
 import android.os.Bundle
@@ -10,6 +10,7 @@ import android.widget.ImageView
 import android.widget.ListView
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import com.example.bugs.R
 
 class AuthorsFragment : Fragment() {
 

@@ -1,18 +1,24 @@
-package com.example.bugs // Замените на ваше имя пакета
+package com.example.bugs
 
-import Player
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.LayoutInflater
 import android.widget.*
 import androidx.fragment.app.Fragment
+import com.example.bugs.data.AppDatabase
+import com.example.bugs.data.entities.User
+import com.example.bugs.data.repository.GameRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 class RegistrationFragment : Fragment() {
 
-    // Объявляем UI-компоненты
     private lateinit var etFullName: EditText
     private lateinit var rgGender: RadioGroup
     private lateinit var spCourse: Spinner
@@ -23,24 +29,34 @@ class RegistrationFragment : Fragment() {
     private lateinit var tvZodiacName: TextView
     private lateinit var btnRegister: Button
     private lateinit var tvResult: TextView
+    private lateinit var spExistingUsers: Spinner
 
     private var selectedBirthDate: Long = System.currentTimeMillis()
+    private lateinit var repository: GameRepository
+    private lateinit var sharedPreferences: SharedPreferences
+    private var usersList = emptyList<User>()
 
-    // Этот метод заменяет onCreate в Activity
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // Загружаем макет фрагмента (создайте fragment_registration.xml)
-        val rootView = inflater.inflate(R.layout.fragment_registration, container, false)
+        return inflater.inflate(R.layout.fragment_registration, container, false)
+    }
 
-        // Инициализируем View через rootView
-        initViews(rootView)
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Инициализация базы данных
+        val database = AppDatabase.getInstance(requireContext())
+        repository = GameRepository(database)
+        sharedPreferences = requireActivity().getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
+
+        initViews(view)
         setupCourseSpinner()
+        setupExistingUsersSpinner()
         setupListeners()
-
-        return rootView
+        loadExistingUsers()
     }
 
     private fun initViews(rootView: View) {
@@ -54,6 +70,35 @@ class RegistrationFragment : Fragment() {
         tvZodiacName = rootView.findViewById(R.id.tvZodiacName)
         btnRegister = rootView.findViewById(R.id.btnRegister)
         tvResult = rootView.findViewById(R.id.tvResult)
+        spExistingUsers = rootView.findViewById(R.id.spExistingUsers)
+    }
+
+    private fun setupExistingUsersSpinner() {
+        val adapter = ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            mutableListOf("Новый пользователь")
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spExistingUsers.adapter = adapter
+    }
+
+    private fun loadExistingUsers() {
+        CoroutineScope(Dispatchers.Main).launch {
+            repository.getAllUsers().collect { users ->
+                usersList = users
+                val userNames = mutableListOf("Новый пользователь")
+                userNames.addAll(users.map { it.fullName })
+
+                val adapter = ArrayAdapter(
+                    requireContext(),
+                    android.R.layout.simple_spinner_item,
+                    userNames
+                )
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                spExistingUsers.adapter = adapter
+            }
+        }
     }
 
     private fun setupCourseSpinner() {
@@ -83,6 +128,65 @@ class RegistrationFragment : Fragment() {
         btnRegister.setOnClickListener {
             registerPlayer()
         }
+
+        // Обработчик выбора существующего пользователя
+        spExistingUsers.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position > 0) {
+                    val selectedUser = usersList[position - 1]
+                    fillFormWithUserData(selectedUser)
+                } else {
+                    clearForm()
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
+
+    private fun fillFormWithUserData(user: User) {
+        etFullName.setText(user.fullName)
+
+        // Установка пола
+        when (user.gender) {
+            "Мужской" -> rgGender.check(R.id.rbMale)
+            "Женский" -> rgGender.check(R.id.rbFemale)
+        }
+
+        // Установка курса
+        val courses = arrayOf("1 курс", "2 курс", "3 курс", "4 курс")
+        val coursePosition = courses.indexOf(user.course)
+        if (coursePosition != -1) {
+            spCourse.setSelection(coursePosition)
+        }
+
+        // Установка уровня сложности
+        sbDifficulty.progress = user.difficultyLevel
+        tvDifficultyLevel.text = "Уровень: ${user.difficultyLevel}"
+
+        // Установка даты рождения
+        cvBirthDate.date = user.birthDate
+        selectedBirthDate = user.birthDate
+
+        // Обновление знака зодиака
+        val calendar = Calendar.getInstance().apply { timeInMillis = user.birthDate }
+        updateZodiacSign(
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH) + 1,
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    private fun clearForm() {
+        etFullName.text.clear()
+        rgGender.clearCheck()
+        spCourse.setSelection(0)
+        sbDifficulty.progress = 5
+        tvDifficultyLevel.text = "Уровень: 5"
+        cvBirthDate.date = System.currentTimeMillis()
+        selectedBirthDate = System.currentTimeMillis()
+        tvZodiacName.text = "Не выбран"
+        ivZodiac.setImageResource(R.drawable.ic_default)
+        tvResult.visibility = View.GONE
     }
 
     private fun updateZodiacSign(year: Int, month: Int, day: Int) {
@@ -156,7 +260,7 @@ class RegistrationFragment : Fragment() {
         val difficultyLevel = sbDifficulty.progress
         val zodiacSign = tvZodiacName.text.toString()
 
-        val player = Player(
+        val user = User(
             fullName = fullName,
             gender = gender,
             course = course,
@@ -165,25 +269,45 @@ class RegistrationFragment : Fragment() {
             zodiacSign = zodiacSign
         )
 
-        displayPlayerInfo(player)
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val userId = repository.insertUser(user)
+                Toast.makeText(requireContext(), "Пользователь сохранен!", Toast.LENGTH_SHORT).show()
+
+                // Сохраняем ID текущего пользователя в SharedPreferences
+                sharedPreferences.edit().putLong("current_user_id", userId).apply()
+
+                displayUserInfo(user)
+                loadExistingUsers() // Обновляем список пользователей
+
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Ошибка сохранения: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
-    private fun displayPlayerInfo(player: Player) {
+    private fun displayUserInfo(user: User) {
         val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
-        val birthDateStr = dateFormat.format(Date(player.birthDate))
+        val birthDateStr = dateFormat.format(Date(user.birthDate))
 
         val resultText = """
             Регистрация завершена!
             
-            ФИО: ${player.fullName}
-            Пол: ${player.gender}
-            Курс: ${player.course}
-            Уровень сложности: ${player.difficultyLevel}/10
+            ФИО: ${user.fullName}
+            Пол: ${user.gender}
+            Курс: ${user.course}
+            Уровень сложности: ${user.difficultyLevel}/10
             Дата рождения: $birthDateStr
-            Знак зодиака: ${player.zodiacSign}
+            Знак зодиака: ${user.zodiacSign}
         """.trimIndent()
 
         tvResult.text = resultText
         tvResult.visibility = View.VISIBLE
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // При возвращении на фрагмент обновляем список пользователей
+        loadExistingUsers()
     }
 }

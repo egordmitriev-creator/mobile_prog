@@ -1,4 +1,4 @@
-package com.example.bugs
+package com.example.bugs.fragments
 
 import android.animation.ValueAnimator
 import android.content.Context
@@ -6,6 +6,7 @@ import android.graphics.*
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import com.example.bugs.R
 import kotlin.random.Random
 
 class GameView @JvmOverloads constructor(
@@ -72,7 +73,7 @@ class GameView @JvmOverloads constructor(
         bugs.clear()
 
         animator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 1000
+            ValueAnimator.setFrameDelay(1000)
             repeatCount = ValueAnimator.INFINITE
             addUpdateListener {
                 updateBugs()
@@ -135,7 +136,7 @@ class GameView @JvmOverloads constructor(
                 bug.speedY *= -1
             }
 
-            // Удаляем жуков, которые живут слишком долго (кроме бонусных)
+            // Удаляем жуков, которые живут слишком долго
             bug.lifetime--
             if (bug.lifetime <= 0 && bug.type != 2) {
                 iterator.remove()

@@ -1,4 +1,4 @@
-package com.example.bugs
+package com.example.bugs.fragments
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import com.example.bugs.R
 
 class SettingsFragment : Fragment() {
 

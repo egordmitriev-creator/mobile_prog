@@ -1,17 +1,11 @@
 package com.example.bugs
 
-import Player
 import android.os.Bundle
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import java.util.*
-import android.widget.*
 import androidx.viewpager2.widget.ViewPager2
+import com.example.bugs.fragments.ViewPagerAdapter
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
-import java.text.SimpleDateFormat
 
 
 class MainActivity : AppCompatActivity() {
@@ -32,6 +26,7 @@ class MainActivity : AppCompatActivity() {
                 2 -> "Авторы"
                 3 -> "Настройки"
                 4 -> "Игра"
+                5 -> "Рекорды"
                 else -> null
             }
         }.attach()

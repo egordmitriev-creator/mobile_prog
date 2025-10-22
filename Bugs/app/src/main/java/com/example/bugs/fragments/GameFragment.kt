@@ -1,20 +1,24 @@
 package com.example.bugs
 
-import android.animation.ValueAnimator
 import android.content.Context
 import android.content.SharedPreferences
-import android.graphics.*
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
-import kotlin.random.Random
+import com.example.bugs.data.AppDatabase
+import com.example.bugs.data.entities.Record
+import com.example.bugs.data.repository.GameRepository
+import com.example.bugs.fragments.GameView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class GameFragment : Fragment() {
 
@@ -30,6 +34,8 @@ class GameFragment : Fragment() {
     private var isGameRunning = false
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var gameHandler: Handler
+    private lateinit var repository: GameRepository
+    private var currentUserId: Long = 0
 
     private val gameRunnable = object : Runnable {
         override fun run() {
@@ -59,6 +65,7 @@ class GameFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Инициализация UI элементов
         gameView = view.findViewById(R.id.gameView)
         scoreTextView = view.findViewById(R.id.scoreTextView)
         timerTextView = view.findViewById(R.id.timerTextView)
@@ -66,11 +73,17 @@ class GameFragment : Fragment() {
         restartButton = view.findViewById(R.id.restartButton)
         startMessage = view.findViewById(R.id.startMessage)
 
-        sharedPreferences = requireContext().getSharedPreferences("game_settings", Context.MODE_PRIVATE)
+        // Инициализация базы данных и репозитория
+        val database = AppDatabase.getInstance(requireContext())
+        repository = GameRepository(database)
+
+        // Инициализация SharedPreferences
+        sharedPreferences = requireActivity().getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
         gameHandler = Handler(Looper.getMainLooper())
 
         setupGame()
         setupButtons()
+        loadCurrentUser()
     }
 
     private fun setupGame() {
@@ -96,12 +109,26 @@ class GameFragment : Fragment() {
     private fun setupButtons() {
         // Кнопка начала игры
         startButton.setOnClickListener {
+            setupGame()
+            if (currentUserId == 0L) {
+                Toast.makeText(requireContext(), "Сначала зарегистрируйтесь!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             startGame()
         }
 
         // Кнопка перезапуска
         restartButton.setOnClickListener {
             restartGame()
+        }
+    }
+
+    private fun loadCurrentUser() {
+        currentUserId = sharedPreferences.getLong("current_user_id", 0)
+        if (currentUserId == 0L) {
+            startButton.isEnabled = false
+            startButton.text = "Сначала зарегистрируйтесь"
+            startButton.setBackgroundColor(resources.getColor(android.R.color.darker_gray))
         }
     }
 
@@ -150,12 +177,37 @@ class GameFragment : Fragment() {
         gameView.stopGame()
         gameHandler.removeCallbacks(gameRunnable)
 
+        // Сохраняем рекорд
+        saveRecord()
+
         // Показываем кнопку перезапуска
         restartButton.visibility = View.VISIBLE
 
         // Обновляем информацию о финальном счете
         scoreTextView.text = "Игра окончена! Счет: $score"
         timerTextView.text = "Время вышло!"
+    }
+
+    private fun saveRecord() {
+        if (currentUserId == 0L) {
+            return
+        }
+
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val difficultyLevel = sharedPreferences.getInt("speed", 50)
+                val record = Record(
+                    userId = currentUserId,
+                    score = score,
+                    difficultyLevel = difficultyLevel,
+                    gameDuration = gameTime
+                )
+                repository.insertRecord(record)
+                Toast.makeText(requireContext(), "Рекорд сохранен: $score очков!", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Ошибка сохранения рекорда", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun resetGameState() {
@@ -187,6 +239,14 @@ class GameFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        // При возобновлении обновляем состояние текущего пользователя
+        loadCurrentUser()
         // Не возобновляем игру автоматически - ждем нажатия кнопки
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // Очищаем handler при уничтожении view
+        gameHandler.removeCallbacks(gameRunnable)
     }
 }
