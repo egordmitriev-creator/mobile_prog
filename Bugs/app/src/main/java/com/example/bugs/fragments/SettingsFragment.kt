@@ -31,12 +31,14 @@ class SettingsFragment : Fragment() {
         setupSettings()
     }
 
+    // В методе setupSettings добавьте/измените настройки:
+
     private fun setupSettings() {
         // Скорость игры
         val speedSeekBar: SeekBar = requireView().findViewById(R.id.speed_seekbar)
         val speedValue: TextView = requireView().findViewById(R.id.speed_value)
 
-        // Максимальное количество тараканов
+        // Максимальное количество тараканов - УВЕЛИЧИВАЕМ ДИАПАЗОН
         val cockroachesSeekBar: SeekBar = requireView().findViewById(R.id.cockroaches_seekbar)
         val cockroachesValue: TextView = requireView().findViewById(R.id.cockroaches_value)
 
@@ -48,14 +50,33 @@ class SettingsFragment : Fragment() {
         val durationSeekBar: SeekBar = requireView().findViewById(R.id.duration_seekbar)
         val durationValue: TextView = requireView().findViewById(R.id.duration_value)
 
-        // Загружаем сохраненные настройки
-        loadSettings(speedSeekBar, speedValue, cockroachesSeekBar, cockroachesValue,
-            bonusSeekBar, bonusValue, durationSeekBar, durationValue)
+        // Устанавливаем максимальные значения
+        cockroachesSeekBar.max = 50  // Максимум 50 жуков
+        speedSeekBar.max = 100
 
-        setupSeekBarListeners(speedSeekBar, speedValue, "speed", 50)
-        setupSeekBarListeners(cockroachesSeekBar, cockroachesValue, "cockroaches", 10)
+        // Загружаем сохраненные настройки с увеличенными значениями по умолчанию
+        val speed = sharedPreferences.getInt("speed", 60)
+        val cockroaches = sharedPreferences.getInt("cockroaches", 20)  // По умолчанию 20
+        val bonus = sharedPreferences.getInt("bonus", 30)
+        val duration = sharedPreferences.getInt("duration", 90)  // Увеличили время раунда
+
+        speedSeekBar.progress = speed
+        speedValue.text = speed.toString()
+
+        cockroachesSeekBar.progress = cockroaches
+        cockroachesValue.text = cockroaches.toString()
+
+        bonusSeekBar.progress = bonus
+        bonusValue.text = bonus.toString()
+
+        durationSeekBar.progress = duration
+        durationValue.text = duration.toString()
+
+        // Устанавливаем слушатели
+        setupSeekBarListeners(speedSeekBar, speedValue, "speed", 60)
+        setupSeekBarListeners(cockroachesSeekBar, cockroachesValue, "cockroaches", 20)
         setupSeekBarListeners(bonusSeekBar, bonusValue, "bonus", 30)
-        setupSeekBarListeners(durationSeekBar, durationValue, "duration", 60)
+        setupSeekBarListeners(durationSeekBar, durationValue, "duration", 90)
     }
 
     private fun setupSeekBarListeners(

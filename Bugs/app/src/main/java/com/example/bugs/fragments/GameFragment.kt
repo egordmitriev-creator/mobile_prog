@@ -28,6 +28,7 @@ class GameFragment : Fragment() {
     private lateinit var startButton: Button
     private lateinit var restartButton: Button
     private lateinit var startMessage: TextView
+    private lateinit var tiltStatusTextView: TextView
 
     private var score = 0
     private var gameTime = 0
@@ -43,7 +44,6 @@ class GameFragment : Fragment() {
                 gameTime++
                 updateGameInfo()
 
-                // Проверяем окончание времени раунда
                 val roundDuration = sharedPreferences.getInt("duration", 60)
                 if (gameTime >= roundDuration) {
                     endGame()
@@ -72,6 +72,7 @@ class GameFragment : Fragment() {
         startButton = view.findViewById(R.id.startButton)
         restartButton = view.findViewById(R.id.restartButton)
         startMessage = view.findViewById(R.id.startMessage)
+        tiltStatusTextView = view.findViewById(R.id.tiltStatusTextView)
 
         // Инициализация базы данных и репозитория
         val database = AppDatabase.getInstance(requireContext())
@@ -98,18 +99,24 @@ class GameFragment : Fragment() {
         }
 
         gameView.setOnMissListener {
-            score = maxOf(0, score - 5) // Штраф 5 очков, но не меньше 0
+            score = maxOf(0, score - 5)
             updateGameInfo()
         }
 
-        // Изначально игра не запущена
+        gameView.setOnTiltBonusActivated { isActive ->
+            if (isActive) {
+                tiltStatusTextView.text = "🌀 РЕЖИМ НАКЛОНА АКТИВЕН!"
+                tiltStatusTextView.visibility = View.VISIBLE
+            } else {
+                tiltStatusTextView.visibility = View.GONE
+            }
+        }
+
         resetGameState()
     }
 
     private fun setupButtons() {
-        // Кнопка начала игры
         startButton.setOnClickListener {
-            setupGame()
             if (currentUserId == 0L) {
                 Toast.makeText(requireContext(), "Сначала зарегистрируйтесь!", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -117,7 +124,6 @@ class GameFragment : Fragment() {
             startGame()
         }
 
-        // Кнопка перезапуска
         restartButton.setOnClickListener {
             restartGame()
         }
@@ -133,42 +139,30 @@ class GameFragment : Fragment() {
     }
 
     private fun startGame() {
-        // Скрываем кнопку старта и сообщение
         startButton.visibility = View.GONE
         startMessage.visibility = View.GONE
         restartButton.visibility = View.GONE
+        tiltStatusTextView.visibility = View.GONE
 
-        // Сбрасываем игру
         score = 0
         gameTime = 0
         isGameRunning = true
 
-        // Обновляем информацию
         updateGameInfo()
-
-        // Запускаем игровое поле
         gameView.startGame()
-
-        // Запускаем таймер
         gameHandler.post(gameRunnable)
     }
 
     private fun restartGame() {
-        // Скрываем кнопку перезапуска
         restartButton.visibility = View.GONE
+        tiltStatusTextView.visibility = View.GONE
 
-        // Сбрасываем игру
         score = 0
         gameTime = 0
         isGameRunning = true
 
-        // Обновляем информацию
         updateGameInfo()
-
-        // Перезапускаем игровое поле
         gameView.restartGame()
-
-        // Запускаем таймер
         gameHandler.post(gameRunnable)
     }
 
@@ -177,13 +171,10 @@ class GameFragment : Fragment() {
         gameView.stopGame()
         gameHandler.removeCallbacks(gameRunnable)
 
-        // Сохраняем рекорд
         saveRecord()
-
-        // Показываем кнопку перезапуска
         restartButton.visibility = View.VISIBLE
+        tiltStatusTextView.visibility = View.GONE
 
-        // Обновляем информацию о финальном счете
         scoreTextView.text = "Игра окончена! Счет: $score"
         timerTextView.text = "Время вышло!"
     }
@@ -216,10 +207,10 @@ class GameFragment : Fragment() {
         isGameRunning = false
         updateGameInfo()
 
-        // Показываем начальное состояние
         startButton.visibility = View.VISIBLE
         startMessage.visibility = View.VISIBLE
         restartButton.visibility = View.GONE
+        tiltStatusTextView.visibility = View.GONE
     }
 
     private fun updateGameInfo() {
@@ -239,14 +230,11 @@ class GameFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // При возобновлении обновляем состояние текущего пользователя
         loadCurrentUser()
-        // Не возобновляем игру автоматически - ждем нажатия кнопки
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // Очищаем handler при уничтожении view
         gameHandler.removeCallbacks(gameRunnable)
     }
 }
