@@ -15,6 +15,7 @@ import androidx.fragment.app.Fragment
 import com.example.bugs.data.AppDatabase
 import com.example.bugs.data.entities.Record
 import com.example.bugs.data.repository.GameRepository
+import com.example.bugs.data.repository.GoldRateRepository
 import com.example.bugs.fragments.GameView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,7 @@ class GameFragment : Fragment() {
     private lateinit var restartButton: Button
     private lateinit var startMessage: TextView
     private lateinit var tiltStatusTextView: TextView
+    private lateinit var goldRateTextView: TextView
 
     private var score = 0
     private var gameTime = 0
@@ -36,6 +38,7 @@ class GameFragment : Fragment() {
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var gameHandler: Handler
     private lateinit var repository: GameRepository
+    private lateinit var goldRateRepository: GoldRateRepository
     private var currentUserId: Long = 0
 
     private val gameRunnable = object : Runnable {
@@ -65,7 +68,6 @@ class GameFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Инициализация UI элементов
         gameView = view.findViewById(R.id.gameView)
         scoreTextView = view.findViewById(R.id.scoreTextView)
         timerTextView = view.findViewById(R.id.timerTextView)
@@ -73,24 +75,24 @@ class GameFragment : Fragment() {
         restartButton = view.findViewById(R.id.restartButton)
         startMessage = view.findViewById(R.id.startMessage)
         tiltStatusTextView = view.findViewById(R.id.tiltStatusTextView)
+        goldRateTextView = view.findViewById(R.id.goldRateTextView)
 
-        // Инициализация базы данных и репозитория
         val database = AppDatabase.getInstance(requireContext())
         repository = GameRepository(database)
+        goldRateRepository = GoldRateRepository(requireContext())
 
-        // Инициализация SharedPreferences
         sharedPreferences = requireActivity().getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
         gameHandler = Handler(Looper.getMainLooper())
 
         setupGame()
         setupButtons()
         loadCurrentUser()
+        loadGoldRate()
     }
 
     private fun setupGame() {
-        // Загружаем настройки
         val gameSpeed = sharedPreferences.getInt("speed", 50)
-        val maxBugs = sharedPreferences.getInt("cockroaches", 10)
+        val maxBugs = sharedPreferences.getInt("cockroaches", 25) // Увеличили по умолчанию
 
         gameView.setGameSettings(gameSpeed, maxBugs)
         gameView.setOnBugTappedListener { points ->
@@ -110,6 +112,12 @@ class GameFragment : Fragment() {
             } else {
                 tiltStatusTextView.visibility = View.GONE
             }
+        }
+
+        gameView.setOnGoldenBugTapped { points ->
+            score += points
+            updateGameInfo()
+            Toast.makeText(requireContext(), "Золотой таракан! +${points}₽", Toast.LENGTH_SHORT).show()
         }
 
         resetGameState()
@@ -135,6 +143,22 @@ class GameFragment : Fragment() {
             startButton.isEnabled = false
             startButton.text = "Сначала зарегистрируйтесь"
             startButton.setBackgroundColor(resources.getColor(android.R.color.darker_gray))
+        }
+    }
+
+    private fun loadGoldRate() {
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val goldRate = goldRateRepository.getCurrentGoldRate()
+                gameView.setGoldRate(goldRate)
+                goldRateTextView.text = "Курс золота: ${String.format("%.2f", goldRate)}₽/унция"
+                goldRateTextView.visibility = View.VISIBLE
+            } catch (e: Exception) {
+                val cachedRate = goldRateRepository.getCachedGoldRate()
+                gameView.setGoldRate(cachedRate)
+                goldRateTextView.text = "Курс золота: ${String.format("%.2f", cachedRate)}₽/унция (кэш)"
+                goldRateTextView.visibility = View.VISIBLE
+            }
         }
     }
 
@@ -231,6 +255,7 @@ class GameFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         loadCurrentUser()
+        loadGoldRate()
     }
 
     override fun onDestroyView() {
