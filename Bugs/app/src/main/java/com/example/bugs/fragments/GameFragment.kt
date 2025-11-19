@@ -16,6 +16,7 @@ import com.example.bugs.data.AppDatabase
 import com.example.bugs.data.entities.Record
 import com.example.bugs.data.repository.GameRepository
 import com.example.bugs.data.repository.GoldRateRepository
+import com.example.bugs.data.repository.SimpleGoldRateRepository
 import com.example.bugs.fragments.GameView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +39,7 @@ class GameFragment : Fragment() {
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var gameHandler: Handler
     private lateinit var repository: GameRepository
-    private lateinit var goldRateRepository: GoldRateRepository
+    private lateinit var goldRateRepository: SimpleGoldRateRepository
     private var currentUserId: Long = 0
 
     private val gameRunnable = object : Runnable {
@@ -79,7 +80,7 @@ class GameFragment : Fragment() {
 
         val database = AppDatabase.getInstance(requireContext())
         repository = GameRepository(database)
-        goldRateRepository = GoldRateRepository(requireContext())
+        goldRateRepository = SimpleGoldRateRepository(requireContext())
 
         sharedPreferences = requireActivity().getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
         gameHandler = Handler(Looper.getMainLooper())

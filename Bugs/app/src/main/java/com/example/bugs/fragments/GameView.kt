@@ -240,8 +240,8 @@ class GameView @JvmOverloads constructor(
     private fun createGoldenBug() {
         if (goldenBugBitmap == null) return
 
-        // Очки = курс золота / 100 (чтобы были адекватные значения)
-        val points = (currentGoldRate / 100).toInt()
+        // Очки = курс золота / 1000 (чтобы были адекватные значения ~230 очков)
+        val points = (currentGoldRate / 1000).toInt()
 
         goldenBug = GoldenBug(
             bitmap = goldenBugBitmap!!,
@@ -250,8 +250,8 @@ class GameView @JvmOverloads constructor(
             speedX = (Random.nextFloat() * 8 - 4) * gameSpeed,
             speedY = (Random.nextFloat() * 8 - 4) * gameSpeed,
             creationTime = System.currentTimeMillis(),
-            lifetime = 10000L, // 10 секунд
-            points = points.coerceAtLeast(50) // Минимум 50 очков
+            lifetime = 10000L,
+            points = points.coerceAtLeast(100) // Минимум 100 очков
         )
     }
 
@@ -444,15 +444,11 @@ class GameView @JvmOverloads constructor(
             paint.textAlign = Paint.Align.LEFT
         }
 
-        // Отображаем текущий курс золота
-        paint.color = Color.BLACK
-        paint.textSize = 16f
-        canvas.drawText(
-            "Курс золота: ${String.format("%.2f", currentGoldRate)}₽",
-            10f,
-            height - 30f,
-            paint
-        )
+//        // Отображаем текущий курс золота
+//        paint.color = Color.BLACK
+//        paint.textSize = 16f
+//        val rateText = "Курс золота: ${String.format("%.0f", currentGoldRate)}₽/унция"
+//        canvas.drawText(rateText, 10f, height - 30f, paint)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
