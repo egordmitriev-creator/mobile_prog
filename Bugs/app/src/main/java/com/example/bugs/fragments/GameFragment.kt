@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,44 +13,36 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
-import com.example.bugs.data.AppDatabase
-import com.example.bugs.data.entities.Record
-import com.example.bugs.data.repository.GameRepository
-import com.example.bugs.data.repository.GoldRateRepository
-import com.example.bugs.data.repository.SimpleGoldRateRepository
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Observer
+import com.example.bugs.databinding.FragmentGameBinding
 import com.example.bugs.fragments.GameView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.example.bugs.viewmodels.GameViewModel
+import org.koin.android.ext.android.inject
 
 class GameFragment : Fragment() {
 
-    private lateinit var gameView: GameView
-    private lateinit var scoreTextView: TextView
-    private lateinit var timerTextView: TextView
-    private lateinit var startButton: Button
-    private lateinit var restartButton: Button
-    private lateinit var startMessage: TextView
-    private lateinit var tiltStatusTextView: TextView
-    private lateinit var goldRateTextView: TextView
+    private var _binding: FragmentGameBinding? = null
+    private val binding get() = _binding!!
 
-    private var score = 0
-    private var gameTime = 0
-    private var isGameRunning = false
-    private lateinit var sharedPreferences: SharedPreferences
+    // Внедрение ViewModel через Koin
+    private val viewModel: GameViewModel by viewModels()
+
+    // Внедрение зависимостей через Koin
+    private val sharedPreferences: SharedPreferences by inject()
+
+    private lateinit var gameView: GameView
     private lateinit var gameHandler: Handler
-    private lateinit var repository: GameRepository
-    private lateinit var goldRateRepository: SimpleGoldRateRepository
     private var currentUserId: Long = 0
 
     private val gameRunnable = object : Runnable {
         override fun run() {
-            if (isGameRunning) {
-                gameTime++
+            if (viewModel.isGameCurrentlyRunning()) {
+                viewModel.incrementGameTime()
                 updateGameInfo()
 
                 val roundDuration = sharedPreferences.getInt("duration", 60)
-                if (gameTime >= roundDuration) {
+                if (viewModel.getCurrentGameTime() >= roundDuration) {
                     endGame()
                 } else {
                     gameHandler.postDelayed(this, 1000)
@@ -62,70 +55,101 @@ class GameFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        return inflater.inflate(R.layout.fragment_game, container, false)
+    ): View {
+        _binding = FragmentGameBinding.inflate(inflater, container, false)
+        return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        gameView = view.findViewById(R.id.gameView)
-        scoreTextView = view.findViewById(R.id.scoreTextView)
-        timerTextView = view.findViewById(R.id.timerTextView)
-        startButton = view.findViewById(R.id.startButton)
-        restartButton = view.findViewById(R.id.restartButton)
-        startMessage = view.findViewById(R.id.startMessage)
-        tiltStatusTextView = view.findViewById(R.id.tiltStatusTextView)
-        goldRateTextView = view.findViewById(R.id.goldRateTextView)
-
-        val database = AppDatabase.getInstance(requireContext())
-        repository = GameRepository(database)
-        goldRateRepository = SimpleGoldRateRepository(requireContext())
-
-        sharedPreferences = requireActivity().getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
+        // Инициализация UI элементов через ViewBinding
+        gameView = binding.gameView
         gameHandler = Handler(Looper.getMainLooper())
 
         setupGame()
         setupButtons()
         loadCurrentUser()
         loadGoldRate()
+
+        // Наблюдатели LiveData
+        setupObservers()
+    }
+
+    private fun setupObservers() {
+        // Наблюдаем за изменениями счета
+        viewModel.score.observe(viewLifecycleOwner, Observer { score ->
+            binding.scoreTextView.text = "Очки: $score"
+        })
+
+        // Наблюдаем за временем игры
+        viewModel.gameTime.observe(viewLifecycleOwner, Observer { time ->
+            val roundDuration = sharedPreferences.getInt("duration", 60)
+            val timeLeft = roundDuration - time
+            binding.timerTextView.text = "Осталось: ${timeLeft}с"
+        })
+
+        // Наблюдаем за статусом режима наклона
+        viewModel.tiltModeActive.observe(viewLifecycleOwner, Observer { isActive ->
+            if (isActive) {
+                binding.tiltStatusTextView.text = "🌀 РЕЖИМ НАКЛОНА АКТИВЕН!"
+                binding.tiltStatusTextView.visibility = View.VISIBLE
+            } else {
+                binding.tiltStatusTextView.visibility = View.GONE
+            }
+        })
+
+        // Наблюдаем за курсом золота
+        viewModel.goldRate.observe(viewLifecycleOwner, Observer { rate ->
+            if (rate > 0) {
+                gameView.setGoldRate(rate)
+                binding.goldRateTextView.text = "Курс золота: ${String.format("%.2f", rate)}₽/унция"
+                binding.goldRateTextView.visibility = View.VISIBLE
+            }
+        })
+
+        // Наблюдаем за сообщениями игры
+        viewModel.gameMessage.observe(viewLifecycleOwner, Observer { message ->
+            if (message.isNotEmpty()) {
+                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+            }
+        })
     }
 
     private fun setupGame() {
-        val gameSpeed = sharedPreferences.getInt("speed", 50)
-        val maxBugs = sharedPreferences.getInt("cockroaches", 25) // Увеличили по умолчанию
+        try {
+            val gameSpeed = sharedPreferences.getInt("speed", 50)
+            val maxBugs = sharedPreferences.getInt("cockroaches", 25)
 
-        gameView.setGameSettings(gameSpeed, maxBugs)
-        gameView.setOnBugTappedListener { points ->
-            score += points
-            updateGameInfo()
-        }
+            gameView.setGameSettings(gameSpeed, maxBugs)
 
-        gameView.setOnMissListener {
-            score = maxOf(0, score - 5)
-            updateGameInfo()
-        }
-
-        gameView.setOnTiltBonusActivated { isActive ->
-            if (isActive) {
-                tiltStatusTextView.text = "🌀 РЕЖИМ НАКЛОНА АКТИВЕН!"
-                tiltStatusTextView.visibility = View.VISIBLE
-            } else {
-                tiltStatusTextView.visibility = View.GONE
+            // Коллбэки теперь обновляют ViewModel
+            gameView.setOnBugTappedListener { points ->
+                viewModel.incrementScore(points)
             }
-        }
 
-        gameView.setOnGoldenBugTapped { points ->
-            score += points
-            updateGameInfo()
-            Toast.makeText(requireContext(), "Золотой таракан! +${points}₽", Toast.LENGTH_SHORT).show()
-        }
+            gameView.setOnMissListener {
+                viewModel.decrementScore(5)
+            }
 
-        resetGameState()
+            gameView.setOnTiltBonusActivated { isActive ->
+                viewModel.setTiltModeActive(isActive)
+            }
+
+            gameView.setOnGoldenBugTapped { points ->
+                viewModel.incrementScore(points)
+                viewModel.setGameMessage("Золотой таракан! +${points}₽")
+            }
+
+            resetGameState()
+        } catch (e: Exception) {
+            Log.e("GameFragment", "Error in setupGame: ${e.message}", e)
+            Toast.makeText(requireContext(), "Ошибка инициализации игры", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun setupButtons() {
-        startButton.setOnClickListener {
+        binding.startButton.setOnClickListener {
             if (currentUserId == 0L) {
                 Toast.makeText(requireContext(), "Сначала зарегистрируйтесь!", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -133,75 +157,82 @@ class GameFragment : Fragment() {
             startGame()
         }
 
-        restartButton.setOnClickListener {
+        binding.restartButton.setOnClickListener {
             restartGame()
         }
     }
 
     private fun loadCurrentUser() {
-        currentUserId = sharedPreferences.getLong("current_user_id", 0)
-        if (currentUserId == 0L) {
-            startButton.isEnabled = false
-            startButton.text = "Сначала зарегистрируйтесь"
-            startButton.setBackgroundColor(resources.getColor(android.R.color.darker_gray))
+        try {
+            currentUserId = sharedPreferences.getLong("current_user_id", 0)
+            if (currentUserId == 0L) {
+                binding.startButton.isEnabled = false
+                binding.startButton.text = "Сначала зарегистрируйтесь"
+                binding.startButton.setBackgroundColor(resources.getColor(android.R.color.darker_gray, null))
+            }
+        } catch (e: Exception) {
+            Log.e("GameFragment", "Error loading current user: ${e.message}", e)
         }
     }
 
     private fun loadGoldRate() {
-        CoroutineScope(Dispatchers.Main).launch {
-            try {
-                val goldRate = goldRateRepository.getCurrentGoldRate()
-                gameView.setGoldRate(goldRate)
-                goldRateTextView.text = "Курс золота: ${String.format("%.2f", goldRate)}₽/унция"
-                goldRateTextView.visibility = View.VISIBLE
-            } catch (e: Exception) {
-                val cachedRate = goldRateRepository.getCachedGoldRate()
-                gameView.setGoldRate(cachedRate)
-                goldRateTextView.text = "Курс золота: ${String.format("%.2f", cachedRate)}₽/унция (кэш)"
-                goldRateTextView.visibility = View.VISIBLE
-            }
-        }
+        viewModel.loadGoldRate()
     }
 
     private fun startGame() {
-        startButton.visibility = View.GONE
-        startMessage.visibility = View.GONE
-        restartButton.visibility = View.GONE
-        tiltStatusTextView.visibility = View.GONE
+        try {
+            binding.startButton.visibility = View.GONE
+            binding.startMessage.visibility = View.GONE
+            binding.restartButton.visibility = View.GONE
+            binding.tiltStatusTextView.visibility = View.GONE
 
-        score = 0
-        gameTime = 0
-        isGameRunning = true
+            viewModel.resetGame()
+            viewModel.setGameRunning(true)
 
-        updateGameInfo()
-        gameView.startGame()
-        gameHandler.post(gameRunnable)
+            updateGameInfo()
+            gameView.startGame()
+            gameHandler.post(gameRunnable)
+        } catch (e: Exception) {
+            Log.e("GameFragment", "Error starting game: ${e.message}", e)
+            Toast.makeText(requireContext(), "Ошибка запуска игры", Toast.LENGTH_SHORT).show()
+            resetGameState()
+        }
     }
 
     private fun restartGame() {
-        restartButton.visibility = View.GONE
-        tiltStatusTextView.visibility = View.GONE
+        try {
+            binding.restartButton.visibility = View.GONE
+            binding.tiltStatusTextView.visibility = View.GONE
 
-        score = 0
-        gameTime = 0
-        isGameRunning = true
+            viewModel.resetGame()
+            viewModel.setGameRunning(true)
 
-        updateGameInfo()
-        gameView.restartGame()
-        gameHandler.post(gameRunnable)
+            updateGameInfo()
+            gameView.restartGame()
+            gameHandler.post(gameRunnable)
+        } catch (e: Exception) {
+            Log.e("GameFragment", "Error restarting game: ${e.message}", e)
+            Toast.makeText(requireContext(), "Ошибка перезапуска игры", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun endGame() {
-        isGameRunning = false
-        gameView.stopGame()
+        viewModel.setGameRunning(false)
+        try {
+            gameView.stopGame()
+        } catch (e: Exception) {
+            Log.e("GameFragment", "Error stopping game view: ${e.message}", e)
+        }
         gameHandler.removeCallbacks(gameRunnable)
 
+        // Сохраняем рекорд через ViewModel
         saveRecord()
-        restartButton.visibility = View.VISIBLE
-        tiltStatusTextView.visibility = View.GONE
 
-        scoreTextView.text = "Игра окончена! Счет: $score"
-        timerTextView.text = "Время вышло!"
+        binding.restartButton.visibility = View.VISIBLE
+        binding.tiltStatusTextView.visibility = View.GONE
+
+        binding.scoreTextView.text = "Игра окончена! Счет: ${viewModel.getCurrentScore()}"
+        binding.timerTextView.text = "Время вышло!"
     }
 
     private fun saveRecord() {
@@ -209,58 +240,54 @@ class GameFragment : Fragment() {
             return
         }
 
-        CoroutineScope(Dispatchers.Main).launch {
-            try {
-                val difficultyLevel = sharedPreferences.getInt("speed", 50)
-                val record = Record(
-                    userId = currentUserId,
-                    score = score,
-                    difficultyLevel = difficultyLevel,
-                    gameDuration = gameTime
-                )
-                repository.insertRecord(record)
-                Toast.makeText(requireContext(), "Рекорд сохранен: $score очков!", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Ошибка сохранения рекорда", Toast.LENGTH_SHORT).show()
-            }
-        }
+        val difficultyLevel = sharedPreferences.getInt("speed", 50)
+        viewModel.saveRecord(
+            userId = currentUserId,
+            difficultyLevel = difficultyLevel,
+            gameDuration = viewModel.getCurrentGameTime()
+        )
+
+        viewModel.setGameMessage("Рекорд сохранен: ${viewModel.getCurrentScore()} очков!")
     }
 
     private fun resetGameState() {
-        score = 0
-        gameTime = 0
-        isGameRunning = false
-        updateGameInfo()
-
-        startButton.visibility = View.VISIBLE
-        startMessage.visibility = View.VISIBLE
-        restartButton.visibility = View.GONE
-        tiltStatusTextView.visibility = View.GONE
+        binding.startButton.visibility = View.VISIBLE
+        binding.startMessage.visibility = View.VISIBLE
+        binding.restartButton.visibility = View.GONE
+        binding.tiltStatusTextView.visibility = View.GONE
     }
 
     private fun updateGameInfo() {
-        val roundDuration = sharedPreferences.getInt("duration", 60)
-        val timeLeft = roundDuration - gameTime
-
-        scoreTextView.text = "Очки: $score"
-        timerTextView.text = "Осталось: ${timeLeft}с"
+        // Обновление через LiveData, поэтому здесь ничего не нужно
     }
 
     override fun onPause() {
         super.onPause()
-        isGameRunning = false
         gameHandler.removeCallbacks(gameRunnable)
-        gameView.stopGame()
+        try {
+            if (viewModel.isGameCurrentlyRunning()) {
+                gameView.stopGame()
+            }
+        } catch (e: Exception) {
+            Log.e("GameFragment", "Error stopping game on pause: ${e.message}", e)
+        }
     }
 
     override fun onResume() {
         super.onResume()
         loadCurrentUser()
         loadGoldRate()
+
+        // Если игра была запущена, продолжаем
+        if (viewModel.isGameCurrentlyRunning()) {
+            gameView.startGame()
+            gameHandler.post(gameRunnable)
+        }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         gameHandler.removeCallbacks(gameRunnable)
+        _binding = null
     }
 }
